@@ -1,0 +1,87 @@
+services:
+  user-db:
+    container_name: user_db
+    image: mongo:latest
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${PASSWORD}
+      MONGO_INITDB_DATABASE: user-db
+    ports:
+      - "27017:27017"
+    volumes:
+      - user_db_data:/data/db
+    networks:
+      - accenture-hon
+
+  user-svc:
+    container_name: user_svc
+    build:
+      context: ./userSvc
+      dockerfile: dockerfile
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://${USERNAME}:${PASSWORD}@user-db:27017/${MONGO_INITDB_DATABASE_USER}/?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - user-db
+    networks:
+      - accenture-hon
+
+  product-db:
+    container_name: product_db
+    image: mongo:latest
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${PASSWORD}
+      MONGO_INITDB_DATABASE: product-db
+    ports:
+      - "27018:27017"
+    volumes:
+      - product_db_data:/data/db
+    networks:
+      - accenture-hon
+
+  product-svc:
+    container_name: product_svc
+    build:
+      context: ./productSvc
+      dockerfile: dockerfile
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://${USERNAME}:${PASSWORD}@product-db:27017/${MONGO_INITDB_DATABASE_PRODUCT}/?authSource=admin
+    ports:
+      - "3001:3001"
+    depends_on:
+      - product-db
+    networks:
+      - accenture-hon
+  
+  gateway:
+    container_name: gateway
+    build:
+      context: ./my-gateway
+      dockerfile: dockerfile
+    env_file:
+      - .env
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-svc
+      - product-svc
+    networks:
+      - accenture-hon
+
+volumes:
+  user_db_data:
+  product_db_data:
+
+networks:
+  accenture-hon:
