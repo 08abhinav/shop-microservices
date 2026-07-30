@@ -24,6 +24,7 @@ services:
     environment:
       MONGODB_URI: mongodb://${USERNAME}:${PASSWORD}@user-db:27017/${MONGO_INITDB_DATABASE_USER}/?authSource=admin
       JWT_SECRET: ${JWT_SECRET}
+      PORT: ${USER_SVC_PORT}
     ports:
       - "3000:3000"
     depends_on:
@@ -55,6 +56,7 @@ services:
       - .env
     environment:
       MONGODB_URI: mongodb://${USERNAME}:${PASSWORD}@product-db:27017/${MONGO_INITDB_DATABASE_PRODUCT}/?authSource=admin
+      PORT: ${PRODUCT_SVC_PORT}
     ports:
       - "3001:3001"
     depends_on:
