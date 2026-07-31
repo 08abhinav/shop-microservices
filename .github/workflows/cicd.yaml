@@ -14,109 +14,93 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  userSvc-build:
-    name: "code quality check"
+  quality-check:
+    name: "Quality Check: ${{ matrix.service.name }}"
     runs-on: self-hosted
+    strategy:
+      matrix:
+        service:
+          - name: "userSvc"
+            dir: "./userSvc"
+            node-version: "22"
+          - name: "productSvc"
+            dir: "./productSvc"
+            node-version: "20"
+          - name: "gatewaySvc"
+            dir: "./my-gateway"
+            node-version: "20"
     defaults:
       run:
-        working-directory: ./userSvc
+        working-directory: ${{ matrix.service.dir }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: set up node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ matrix.service.node-version }}
           cache: 'npm'
-          cache-dependency-path: ./userSvc/package-lock.json
-          
-      - name: install dependencies
-        run : npm ci
+          cache-dependency-path: '${{ matrix.service.dir }}/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run tests
         run: npm test --if-present
-        
-  productSvc-build:
-    name: "code quality check"
-    runs-on: self-hosted
-    defaults:
-      run:
-        working-directory: ./userSvc
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: set up node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: ./userSvc/package-lock.json
-          
-      - name: install dependencies
-        run : npm ci
-        
-      - name: Run tests
-        run: npm test --if-present
-        
   security:
-    name: "security scan"
+    name: "GitLeaks Secret Scan"
     runs-on: self-hosted
     steps:
-      - name: code checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: git leak scan
-        uses: gitleaks/gitleaks-action@v3
+      - name: GitLeaks scan
+        uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
   build-scan-push:
-    name: "Build, Scan and Push All Services"
+    name: "Build, Scan and Push Image"
     runs-on: self-hosted
+    needs: [quality-check, security]
+    strategy:
+      matrix:
+        service:
+          - image_name: "user-svc"
+            context: "./userSvc"
+          - image_name: "product-svc"
+            context: "./productSvc"
+          - image_name: "gateway-svc"
+            context: "./my-gateway"
     steps:
-      - name: code checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build user-svc
+      - name: Build Docker image
         run: |
           docker build \
-            -t ${{ env.REGISTRY }}/user-svc:${{ env.IMAGE_TAG }} \
-            -t ${{ env.REGISTRY }}/user-svc:latest \
-            ./userSvc
-            
-      - name: Build product-svc
-        run: |
-          docker build \
-            -t ${{ env.REGISTRY }}/product-svc:${{ env.IMAGE_TAG }} \
-            -t ${{ env.REGISTRY }}/product-svc:latest \
-            ./productSvc
-            
-      - name: Scan user-svc image with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: '${{ env.REGISTRY }}/user-svc:${{ env.IMAGE_TAG }}'
-          format: 'table'
-          exit-code: '0'
+            -t ${{ env.REGISTRY }}/${{ matrix.service.image_name }}:${{ env.IMAGE_TAG }} \
+            -t ${{ env.REGISTRY }}/${{ matrix.service.image_name }}:latest \
+            ${{ matrix.service.context }}
 
-      - name: Scan product-svc image with Trivy
-        uses: aquasecurity/trivy-action@master
+      - name: Scan Image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: '${{ env.REGISTRY }}/product-svc:${{ env.IMAGE_TAG }}'
+          image-ref: '${{ env.REGISTRY }}/${{ matrix.service.image_name }}:${{ env.IMAGE_TAG }}'
           format: 'table'
           exit-code: '0'
-          
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push user-svc and product-svc
+      - name: Push Docker image
         run: |
-          docker push ${{ env.REGISTRY }}/user-svc:${{ env.IMAGE_TAG }}
-          docker push ${{ env.REGISTRY }}/user-svc:latest
-
-          docker push ${{ env.REGISTRY }}/product-svc:${{ env.IMAGE_TAG }}
-          docker push ${{ env.REGISTRY }}/product-svc:latest
+          docker push ${{ env.REGISTRY }}/${{ matrix.service.image_name }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.REGISTRY }}/${{ matrix.service.image_name }}:latest
