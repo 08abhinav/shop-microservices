@@ -47,6 +47,7 @@ userRoute.post("/sign-in", signInValidation, validate, userSignIn);
  *               - username
  *               - email
  *               - password
+ *               - role
  *             properties:
  *               username:
  *                 type: string
@@ -57,6 +58,9 @@ userRoute.post("/sign-in", signInValidation, validate, userSignIn);
  *               password:
  *                 type: string
  *                 example: StrongPassword123!
+ *               role:
+ *                 type: string
+ *                 example: 'buyer' or 'seller'
  *     responses:
  *       200:
  *         description: Success
