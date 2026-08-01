@@ -12,7 +12,7 @@ app.use(cookieParser())
 app.use(express.json())
 app.use(urlencoded({extended: true}))
 
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerJSDoc))
+app.use("/api/product/docs", swaggerUi.serve, swaggerUi.setup(swaggerJSDoc))
 app.use("/api/product", productRoute);
 
 app.get("/", (req, res)=>{
