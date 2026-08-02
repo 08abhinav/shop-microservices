@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: dev
+data:
+  gateway.config.yml: |
+    http:
+      port: 8080
+    admin:
+      port: 9876
+      host: localhost
+
+    apiEndpoints:
+      users:
+        host: '*'
+        paths: 
+          - '/api/user'
+          - '/api/user/*'
+      publicproducts:
+        host: '*'
+        paths:
+          - '/api/product'
+          - '/api/product/getProd'
+      protectedproducts:
+        host: '*'
+        paths:
+          - '/api/product/createProd'
+          - '/api/product/updateProd/*'
+          - '/api/product/delProd/*'
+          - '/api/product/getUserProd'
+
+    serviceEndpoints:
+      userService:
+        url: 'http://user-svc:3000'
+      productService:
+        url: 'http://product-svc:3001'
+
+    policies:
+      - jwt
+      - cors
+      - proxy
+
+    pipelines:
+      userPipeline:
+        apiEndpoints:
+          - users
+        policies:
+          - cors:
+          - proxy:
+              - action:
+                  serviceEndpoint: userService
+                  changeOrigin: true
+                  stripPath: true
+
+      publicProductPipeline:
+        apiEndpoints:
+          - publicproducts
+        policies:
+          - cors:
+          - proxy:
+              - action:
+                  serviceEndpoint: productService
+                  changeOrigin: true
+                  stripPath: true
+
+      protectedProductPipeline:
+        apiEndpoints:
+          - protectedproducts
+        policies:
+          - cors:
+          - jwt:
+              - action:
+                  secretOrPublicKey: ${JWT_SECRET}
+          - proxy:
+              - action:
+                  serviceEndpoint: productService
+                  changeOrigin: true
+                  stripPath: true
