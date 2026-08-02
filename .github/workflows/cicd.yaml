@@ -146,7 +146,7 @@ jobs:
         run: |
           kubectl apply -f k8s/userdb/config.yaml
           kubectl apply -f k8s/userdb/service.yaml
-          kubectl apply -f k8s/userdb/stoageclass.yaml
+          kubectl apply -f k8s/userdb/storageclass.yaml
           kubectl apply -f k8s/userdb/statefulset.yaml
 
       - name: Wait for user-db
@@ -177,7 +177,7 @@ jobs:
         run: |
           kubectl apply -f k8s/productdb/config.yaml
           kubectl apply -f k8s/productdb/service.yaml
-          kubectl apply -f k8s/productdb/stoageclass.yaml
+          kubectl apply -f k8s/productdb/storageclass.yaml
           kubectl apply -f k8s/productdb/statefulset.yaml
 
       - name: Wait for product-db
