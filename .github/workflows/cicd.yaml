@@ -104,3 +104,109 @@ jobs:
         run: |
           docker push ${{ env.REGISTRY }}/${{ matrix.service.image_name }}:${{ env.IMAGE_TAG }}
           docker push ${{ env.REGISTRY }}/${{ matrix.service.image_name }}:latest
+
+  deploy:
+    name: "deploy-to-minikube"
+    runs-on: self-hosted
+    needs: build-scan-push
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify minikube running
+        run: |
+          minikube status
+          kubectl config use-context minikube
+
+      - name: Enable Nginx ingress
+        run: |
+          minikube addons enable ingress
+
+      - name: wait for ingress controller
+        run: |
+          kubectl wait \
+          --namespace ingress-nginx \
+          --for=condition=Ready pod \
+          --selector=app.kubernetes.io/component=controller \
+          --timeout=300s
+          
+      - name: Create namespace
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+
+      - name: Deploy user-db secret
+        run: |
+          sed \
+            -e "s|MONGO_INITDB_ROOT_USERNAME: \"\"|MONGO_INITDB_ROOT_USERNAME: \"${{ secrets.DB_USERNAME }}\"|" \
+            -e "s|MONGO_INITDB_ROOT_PASSWORD: \"\"|MONGO_INITDB_ROOT_PASSWORD: \"${{ secrets.DB_PASSWORD }}\"|" \
+            k8s/userdb/secret.yaml | kubectl apply -f -
+            
+      - name: Deploy user-db
+        run: |
+          kubectl apply -f k8s/userdb/config.yaml
+          kubectl apply -f k8s/userdb/service.yaml
+          kubectl apply -f k8s/userdb/stoageclass.yaml
+          kubectl apply -f k8s/userdb/statefulset.yaml
+
+      - name: Wait for user-db
+        run: |
+          kubectl rollout status statefulset/user-db -n dev --timeout=300s
+            
+      - name: Deploy user secret
+        run: |
+           sed \
+            -e "s|MONGODB_URI: \"\"|MONGODB_URI: \"${{ secrets.USER_DB_URI }}\"|" \
+            -e "s|JWT_SECRET: \"\"|JWT_SECRET: \"${{ secrets.JWT_SECRET }}\"|" \
+            k8s/user/secret.yaml | kubectl apply -f -
+            
+      - name: Deploy user
+        run: |
+          kubectl apply -f k8s/user/config.yaml
+          kubectl apply -f k8s/user/service.yaml
+          kubectl apply -f k8s/user/deployment.yaml
+            
+      - name: Deploy product-db secret
+        run: |
+            sed \
+              -e "s|MONGO_INITDB_ROOT_USERNAME: \"\"|MONGO_INITDB_ROOT_USERNAME: \"${{ secrets.DB_USERNAME }}\"|" \
+              -e "s|MONGO_INITDB_ROOT_PASSWORD: \"\"|MONGO_INITDB_ROOT_PASSWORD: \"${{ secrets.DB_PASSWORD }}\"|" \
+              k8s/productdb/secret.yaml | kubectl apply -f -
+              
+      - name: Deploy product-db
+        run: |
+          kubectl apply -f k8s/productdb/config.yaml
+          kubectl apply -f k8s/productdb/service.yaml
+          kubectl apply -f k8s/productdb/stoageclass.yaml
+          kubectl apply -f k8s/productdb/statefulset.yaml
+
+      - name: Wait for product-db
+        run: |
+          kubectl rollout status statefulset/product-db -n dev --timeout=300s
+      
+      - name: Deploy product secret
+        run: |
+           sed \
+            -e "s|MONGODB_URI: \"\"|MONGODB_URI: \"${{ secrets.PRODUCT_DB_URI }}\"|" \
+            k8s/product/secret.yaml | kubectl apply -f -
+            
+      - name: Deploy product
+        run: |
+          kubectl apply -f k8s/product/config.yaml
+          kubectl apply -f k8s/product/service.yaml
+          kubectl apply -f k8s/product/deployment.yaml
+
+      - name: Deploy gateway secret
+        run: |
+           sed \
+            -e "s|JWT_SECRET: \"\"|JWT_SECRET: \"${{ secrets.JWT_SECRET }}\"|" \
+            k8s/gateway/secret.yaml | kubectl apply -f -
+
+      - name: Deploy gateway
+        run: |
+          kubectl apply -f k8s/gateway/config.yaml
+          kubectl apply -f k8s/gateway/service.yaml
+          kubectl apply -f k8s/gateway/deployment.yaml
+
+
+      - name: deploy ingress
+        run: |
+         kubectl apply -f k8s/ingress.yaml          
