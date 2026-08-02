@@ -25,10 +25,10 @@ jobs:
             node-version: "22"
           - name: "productSvc"
             dir: "./productSvc"
-            node-version: "20"
+            node-version: "22"
           - name: "gatewaySvc"
             dir: "./my-gateway"
-            node-version: "20"
+            node-version: "22"
     defaults:
       run:
         working-directory: ${{ matrix.service.dir }}
@@ -55,6 +55,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: GitLeaks scan
         uses: gitleaks/gitleaks-action@v2
